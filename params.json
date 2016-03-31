@@ -1,0 +1,6 @@
+{
+  "name": "Couchbaseorm",
+  "tagline": "",
+  "body": "# CouchBaseOrm\r\n\r\nAndroid Library for CouchBase service (http://www.couchbase.com/) with Orm abstraction layer\r\n\r\n## Download \r\n\r\nGrab via Maven:\r\n```xml\r\n<dependency>\r\n  <groupId>com.github</groupId>\r\n  <artifactId>couchbaseorm</artifactId>\r\n  <version>1.0</version>\r\n</dependency>\r\n```\r\nor Gradle:\r\n```groovy\r\nrepositories {\r\n    mavenCentral()\r\n}\r\n\r\ncompile 'com.github:couchbaseorm:1.0'\r\n```\r\n",
+  "note": "Don't delete this file! It's used internally to help with page regeneration."
+}
