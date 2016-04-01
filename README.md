@@ -7,7 +7,7 @@ Android Library for CouchBase service (http://www.couchbase.com/) with Orm abstr
 Grab via Maven:
 ```xml
 <dependency>
-  <groupId>com.github</groupId>
+  <groupId>com.github.DigioAndroid</groupId>
   <artifactId>couchbaseorm</artifactId>
   <version>1.0</version>
 </dependency>
@@ -18,5 +18,5 @@ repositories {
     mavenCentral()
 }
 
-compile 'com.github:couchbaseorm:1.0'
+compile 'com.github.DigioAndroid:couchbaseorm:1.0'
 ```
