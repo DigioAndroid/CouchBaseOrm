@@ -1,4 +1,4 @@
-package com.example.victor.couchbaseorm;
+package com.example.victor.couchbaseorm.model;
 
 import com.couchbaseorm.library.Model;
 import com.couchbaseorm.library.annotation.Column;

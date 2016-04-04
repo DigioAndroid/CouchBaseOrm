@@ -24,6 +24,9 @@ import java.util.Map;
 
 import rx.Observable;
 import rx.Subscriber;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Func0;
+import rx.schedulers.Schedulers;
 
 public abstract class Model {
 
@@ -237,50 +240,54 @@ public abstract class Model {
 
 
     /**
+     * Executed on io thread
      * Query all documents for the given type and notify changes to the listener
      */
-    public static <T extends Model> Observable<List<T>> loadAllNotifyChanges(@NotNull Class<T> type) {
+    public static <T extends Model> Observable<List<T>> observeChanges(@NotNull Class<T> type) {
 
-        return Observable.create(subscriber -> {
-                try {
-                    TableInfo info = Cache.getTableInfo(type);
-                    Database db = Cache.getDatabase();
+        Observable obs = Observable.defer(() -> Observable.create(subscriber -> {
+            try {
+                TableInfo info = Cache.getTableInfo(type);
+                Database db = Cache.getDatabase();
 
-                    if (db != null && info != null) {
+                if (db != null && info != null) {
 
-                        com.couchbase.lite.View view = db.getView(type.getName() + "_all");
-                        if (view.getMap() == null) {
-                            Mapper map = (document, emitter) -> {
-                                if (type.getName().equals(document.get("type"))) {
-                                    emitter.emit(document.get(DOCUMENT_ID_FIELD), null);
-                                }
-                            };
-                            view.setMap(map, "1");
-                        }
-
-                        Query query = view.createQuery();
-
-                        LiveQuery liveQuery = query.toLiveQuery();
-                        liveQuery.addChangeListener(event -> {
-                            if (event.getSource().equals(liveQuery)) {
-
-                                QueryEnumerator enumerator = event.getRows();
-
-                                if (enumerator != null && enumerator.getCount() > 0) {
-                                    subscriber.onNext(buildQuery(type, enumerator));
-                                }
+                    com.couchbase.lite.View view = db.getView(type.getName() + "_all");
+                    if (view.getMap() == null) {
+                        Mapper map = (document, emitter) -> {
+                            if (type.getName().equals(document.get("type"))) {
+                                emitter.emit(document.get(DOCUMENT_ID_FIELD), null);
                             }
-                        });
-
-                        liveQuery.start();
+                        };
+                        view.setMap(map, "1");
                     }
 
-                } catch (Exception ex) {
-                    ex.printStackTrace();
-                    subscriber.onError(ex);
-                }
-            });
+                    Query query = view.createQuery();
 
+                    LiveQuery liveQuery = query.toLiveQuery();
+                    liveQuery.addChangeListener(event -> {
+                        if (event.getSource().equals(liveQuery)) {
+
+                            QueryEnumerator enumerator = event.getRows();
+
+                            if (enumerator != null && enumerator.getCount() > 0) {
+                                boolean a = subscriber.isUnsubscribed();
+                                subscriber.onNext(buildQuery(type, enumerator));
+                            }
+                        }
+                    });
+
+                    liveQuery.start();
+                }
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                subscriber.onError(ex);
+            }
+        }));
+
+        obs.subscribeOn(Schedulers.io());
+        return obs;
     }
 
     private static <T extends Model> List<T> buildQuery(Class<T> type, QueryEnumerator query){
@@ -481,12 +488,14 @@ public abstract class Model {
     }
 
     /**
+     * Executed on io thread
      * Get all entities with a concrete field value and listen changes with a listener
      *
      * */
-    public static <T extends Model> Observable<List<T>> findByFieldNotifyChanges(@NotNull Class<T> type,@NotNull String field,@NotNull Object value) {
+    public static <T extends Model> Observable<List<T>> observeChangesByField(@NotNull Class<T> type, @NotNull String field, @NotNull Object value) {
 
-        return Observable.create(subscriber -> {
+        Observable obs = Observable.defer(() -> Observable.create(subscriber -> {
+
             try {
                 TableInfo info = Cache.getTableInfo(type);
                 Database db = Cache.getDatabase();
@@ -526,7 +535,10 @@ public abstract class Model {
                 ex.printStackTrace();
                 subscriber.onError(ex);
             }
-        });
+        }));
+
+        obs.subscribeOn(Schedulers.io());
+        return obs;
 
     }
 

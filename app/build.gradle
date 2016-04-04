@@ -1,4 +1,23 @@
+buildscript {
+    repositories {
+        jcenter()
+
+    }
+    dependencies {
+        classpath 'me.tatarka:gradle-retrolambda:3.2.4'
+        classpath 'com.neenbedankt.gradle.plugins:android-apt:1.8'
+    }
+}
+
+allprojects {
+    repositories {
+        maven { url "https://oss.sonatype.org/content/repositories/snapshots" }
+    }
+}
+
 apply plugin: 'com.android.application'
+apply plugin: 'me.tatarka.retrolambda'
+apply plugin: 'com.neenbedankt.android-apt'
 
 android {
     compileSdkVersion 23
@@ -23,6 +42,11 @@ android {
         exclude 'META-INF/LICENSE'
         exclude 'META-INF/NOTICE'
     }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
 }
 
 dependencies {
@@ -30,6 +54,9 @@ dependencies {
     testCompile 'junit:junit:4.12'
     compile 'com.android.support:appcompat-v7:23.2.1'
     compile 'com.android.support:design:23.2.1'
+    compile 'com.android.support:recyclerview-v7:23.1.1'
+    compile 'com.jakewharton:butterknife:8.0.0-SNAPSHOT'
+    apt 'com.jakewharton:butterknife-compiler:8.0.0-SNAPSHOT'
 
     compile project(':library')
 }
