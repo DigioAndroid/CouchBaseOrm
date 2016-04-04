@@ -13,23 +13,24 @@ import com.couchbase.lite.QueryEnumerator;
 import com.couchbase.lite.SavedRevision;
 import com.couchbase.lite.UnsavedRevision;
 import com.couchbaseorm.library.util.Log;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.jetbrains.annotations.NotNull;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import rx.Observable;
-import rx.Subscriber;
-import rx.android.schedulers.AndroidSchedulers;
-import rx.functions.Func0;
 import rx.schedulers.Schedulers;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public abstract class Model {
 
+    @JsonProperty(value = "_id")
     private String documentId;
 
     private final static String DOCUMENT_ID_FIELD = "documentId";
@@ -74,6 +75,7 @@ public abstract class Model {
         return false;
     }
 
+
     /**
      * Create a new document in database
      *
@@ -86,6 +88,11 @@ public abstract class Model {
 
             if (db != null && info != null) {
                 // Create a new document and add data
+                ObjectMapper m = new ObjectMapper();
+                Map<String, Object> props = m.convertValue(this, Map.class);
+                props.put(TYPE_FIELD, getType());
+
+                // Create a new document and add data
                 Document document = null;
 
                 if (!TextUtils.isEmpty(documentId)) {
@@ -94,19 +101,8 @@ public abstract class Model {
                     document = db.createDocument();
                 }
 
-                Map<String, Object> map = new HashMap<String, Object>();
-                for (Field field : info.getFields()) {
-                    field.setAccessible(true);
-                    final String fieldName = info.getColumnName(field);
-                    if (field.get(this) != null) {
-                        map.put(fieldName, field.get(this));
-                    }
-                }
 
-                map.put(TYPE_FIELD, getType());
-
-                // Save the properties to the document
-                document.putProperties(map);
+                document.putProperties(props);
                 documentId = document.getId();
                 Log.v("Model: " + getClass().getSimpleName(), "Document " + documentId + " created");
                 return true;
@@ -134,21 +130,17 @@ public abstract class Model {
 
             if (db != null && info != null) {
                 // Create a new document and add data
-                final Document document = db.getDocument(documentId);
+                ObjectMapper m = new ObjectMapper();
+                Map<String, Object> props = m.convertValue(this, Map.class);
+                String id = (String) props.get("_id");
+
+                Document document = db.getExistingDocument(id);
+                props.put(TYPE_FIELD, getType());
+
                 SavedRevision latestRevision = document.getCurrentRevision();
                 UnsavedRevision newUnsavedRevision = latestRevision.createRevision();
 
-                Map<String, Object> map = new HashMap<>();
-                for (Field field : info.getFields()) {
-                    field.setAccessible(true);
-                    final String fieldName = info.getColumnName(field);
-                    if (field.get(this) != null) {
-                        map.put(fieldName, field.get(this));
-                    }
-                }
-                map.put(TYPE_FIELD, getType());
-
-                newUnsavedRevision.setUserProperties(map);
+                newUnsavedRevision.setUserProperties(props);
                 newUnsavedRevision.save();
                 Log.v("Model: " + getClass().getSimpleName(), "Document " + documentId + " updated");
                 return true;
@@ -294,7 +286,7 @@ public abstract class Model {
         List<T> result = new ArrayList<>();
 
         for (int i = 0; i < query.getCount(); i++) {
-            T model = loadFromDocument(type, query.getRow(i).getDocument());
+            T model = modelForDocument(query.getRow(i).getDocument(), type);
             if(model != null){
                 result.add(model);
             }
@@ -303,39 +295,17 @@ public abstract class Model {
         return result;
     }
 
+
     /**
      * Build entity from document object
      *
      * @return entity
      */
-    private static <T extends Model> T loadFromDocument(@NotNull Class<T> type,@NotNull Document doc) {
-
-        try {
-            TableInfo info = Cache.getTableInfo(type);
-            Database db = Cache.getDatabase();
-
-            if (db != null && info != null) {
-
-                T model = type.newInstance();
-                for (Field field : info.getFields()) {
-                    Object value = doc.getProperty(field.getName());
-                    if (value != null) {
-                        boolean access = field.isAccessible();
-                        field.setAccessible(true);
-                        field.set(model, value);
-                        field.setAccessible(access);
-                    }
-                }
-                model.setDocumentId(doc.getId());
-                return model;
-
-            }
-
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-        return null;
+    private static <T extends Model> T modelForDocument(Document document, Class<T> aClass) {
+        ObjectMapper m = new ObjectMapper();
+        return m.convertValue(document.getProperties(), aClass);
     }
+
 
     /**
      * Save all entities in a single transacation
@@ -571,7 +541,7 @@ public abstract class Model {
                 query.setKeys(keys);
                 QueryEnumerator enumerator = query.run();
                 if (enumerator != null && enumerator.getCount() > 0) {
-                    return loadFromDocument(type, enumerator.getRow(0).getDocument());
+                    return modelForDocument(enumerator.getRow(0).getDocument(), type);
                 }
             }
 

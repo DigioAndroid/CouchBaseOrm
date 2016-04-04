@@ -64,4 +64,5 @@ dependencies {
         exclude module: 'support-annotations'
     }
     compile 'org.jetbrains:annotations:13.0'
+    compile 'com.google.code.gson:gson:2.4'
 }

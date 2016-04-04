@@ -3,8 +3,14 @@ package com.couchbaseorm.library;
 
 import android.content.Context;
 
+import com.couchbase.lite.CouchbaseLiteException;
 import com.couchbase.lite.Database;
+import com.couchbase.lite.replicator.Replication;
 import com.couchbaseorm.library.util.Log;
+
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.List;
 
 
 public final class CouchBaseOrm {
@@ -36,4 +42,5 @@ public final class CouchBaseOrm {
 	public static Database getDatabase(){
 		return Cache.getDatabase();
 	}
+
 }
