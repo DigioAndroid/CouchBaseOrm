@@ -1,6 +1,5 @@
-package com.example.victor.couchbaseorm;
+package com.couchbaseorm.library;
 
-import com.couchbaseorm.library.Model;
 import com.couchbaseorm.library.annotation.Column;
 import com.couchbaseorm.library.annotation.Table;
 
