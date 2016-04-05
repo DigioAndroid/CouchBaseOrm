@@ -19,12 +19,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.jetbrains.annotations.NotNull;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import rx.Observable;
+import rx.Subscriber;
 import rx.schedulers.Schedulers;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -57,10 +57,9 @@ public abstract class Model {
     public boolean save() {
 
         try {
-            Database db = Cache.getDatabase();
-            TableInfo info = Cache.getTableInfo(getClass());
+            Database db = CouchBaseOrm.getDatabase();
 
-            if (db != null && info != null) {
+            if (db != null) {
                 if (!TextUtils.isEmpty(documentId) && db.getExistingDocument(documentId) != null) {
                     return update();
                 } else {
@@ -83,10 +82,9 @@ public abstract class Model {
      */
     private boolean create() {
         try {
-            Database db = Cache.getDatabase();
-            TableInfo info = Cache.getTableInfo(getClass());
+            Database db = CouchBaseOrm.getDatabase();
 
-            if (db != null && info != null) {
+            if (db != null) {
                 // Create a new document and add data
                 ObjectMapper m = new ObjectMapper();
                 Map<String, Object> props = m.convertValue(this, Map.class);
@@ -125,10 +123,9 @@ public abstract class Model {
 
         try {
 
-            Database db = Cache.getDatabase();
-            final TableInfo info = Cache.getTableInfo(getClass());
+            Database db = CouchBaseOrm.getDatabase();
 
-            if (db != null && info != null) {
+            if (db != null) {
                 // Create a new document and add data
                 ObjectMapper m = new ObjectMapper();
                 Map<String, Object> props = m.convertValue(this, Map.class);
@@ -161,23 +158,13 @@ public abstract class Model {
     public static <T extends Model> T load(@NotNull Class<T> type,@NotNull String documentId) {
 
         try {
-            TableInfo info = Cache.getTableInfo(type);
-            Database db = Cache.getDatabase();
+            Database db = CouchBaseOrm.getDatabase();
 
-            if (db != null && info != null) {
+            if (db != null) {
                 Document doc = db.getExistingDocument(documentId);
 
                 if (doc != null) {
-                    T model = type.newInstance();
-                    for (Field field : info.getFields()) {
-                        Object value = doc.getProperty(field.getName());
-                        if (value != null) {
-                            boolean access = field.isAccessible();
-                            field.setAccessible(true);
-                            field.set(model, value);
-                            field.setAccessible(access);
-                        }
-                    }
+                    T model = Model.modelForDocument(doc, type);
                     model.setDocumentId(doc.getId());
                     return model;
                 }
@@ -200,10 +187,9 @@ public abstract class Model {
         List<T> result = new ArrayList<>();
 
         try {
-            TableInfo info = Cache.getTableInfo(type);
-            Database db = Cache.getDatabase();
+            Database db = CouchBaseOrm.getDatabase();
 
-            if (db != null && info != null) {
+            if (db != null) {
 
                 com.couchbase.lite.View view = db.getView(type.getName() + "_all");
                 if (view.getMap() == null) {
@@ -238,48 +224,51 @@ public abstract class Model {
     public static <T extends Model> Observable<List<T>> observeChanges(@NotNull Class<T> type) {
 
         Observable obs = Observable.defer(() -> Observable.create(subscriber -> {
-            try {
-                TableInfo info = Cache.getTableInfo(type);
-                Database db = Cache.getDatabase();
-
-                if (db != null && info != null) {
-
-                    com.couchbase.lite.View view = db.getView(type.getName() + "_all");
-                    if (view.getMap() == null) {
-                        Mapper map = (document, emitter) -> {
-                            if (type.getName().equals(document.get("type"))) {
-                                emitter.emit(document.get(DOCUMENT_ID_FIELD), null);
-                            }
-                        };
-                        view.setMap(map, "1");
-                    }
-
-                    Query query = view.createQuery();
-
-                    LiveQuery liveQuery = query.toLiveQuery();
-                    liveQuery.addChangeListener(event -> {
-                        if (event.getSource().equals(liveQuery)) {
-
-                            QueryEnumerator enumerator = event.getRows();
-
-                            if (enumerator != null && enumerator.getCount() > 0) {
-                                boolean a = subscriber.isUnsubscribed();
-                                subscriber.onNext(buildQuery(type, enumerator));
-                            }
-                        }
-                    });
-
-                    liveQuery.start();
-                }
-
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                subscriber.onError(ex);
-            }
+          observar(subscriber, type);
         }));
 
         obs.subscribeOn(Schedulers.io());
         return obs;
+    }
+
+    private static void observar(Subscriber<? super Object> subscriber, Class type) {
+        try {
+            Database db = CouchBaseOrm.getDatabase();
+
+            if (db != null) {
+
+                com.couchbase.lite.View view = db.getView(type.getName() + "_all");
+                if (view.getMap() == null) {
+                    Mapper map = (document, emitter) -> {
+                        if (type.getName().equals(document.get("type"))) {
+                            emitter.emit(document.get(DOCUMENT_ID_FIELD), null);
+                        }
+                    };
+                    view.setMap(map, "1");
+                }
+
+                Query query = view.createQuery();
+
+                LiveQuery liveQuery = query.toLiveQuery();
+                liveQuery.addChangeListener(event -> {
+                    if (event.getSource().equals(liveQuery)) {
+
+                        QueryEnumerator enumerator = event.getRows();
+
+                        if (enumerator != null && enumerator.getCount() > 0) {
+                            boolean a = subscriber.isUnsubscribed();
+                            subscriber.onNext(buildQuery(type, enumerator));
+                        }
+                    }
+                });
+
+                liveQuery.start();
+            }
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            subscriber.onError(ex);
+        }
     }
 
     private static <T extends Model> List<T> buildQuery(Class<T> type, QueryEnumerator query){
@@ -324,10 +313,9 @@ public abstract class Model {
     public static <T extends Model> void saveAll(@NotNull Class<T> type,@NotNull List<T> entities,@Nullable TransactionListener listener) {
 
         try {
-            TableInfo info = Cache.getTableInfo(type);
-            Database db = Cache.getDatabase();
+            Database db = CouchBaseOrm.getDatabase();
 
-            if (db != null && info != null) {
+            if (db != null) {
                 db.runInTransaction(() -> {
                     for (T entity : entities) {
                         if (!entity.save()) {
@@ -358,7 +346,7 @@ public abstract class Model {
     public final boolean delete() {
 
         try {
-            Database db = Cache.getDatabase();
+            Database db = CouchBaseOrm.getDatabase();
 
             if (db != null && !TextUtils.isEmpty(getDocumentId())) {
                 Document d = db.getDocument(getDocumentId());
@@ -381,10 +369,9 @@ public abstract class Model {
     public static boolean deleteAll(@NotNull Class type) {
 
         try {
-            TableInfo info = Cache.getTableInfo(type);
-            Database db = Cache.getDatabase();
+            Database db = CouchBaseOrm.getDatabase();
 
-            if (db != null && info != null) {
+            if (db != null) {
 
                 com.couchbase.lite.View view = db.getView(type.getName() + "_all");
                 if (view.getMap() == null) {
@@ -425,10 +412,9 @@ public abstract class Model {
         List<T> result = new ArrayList<>();
 
         try {
-            TableInfo info = Cache.getTableInfo(type);
-            Database db = Cache.getDatabase();
+            Database db = CouchBaseOrm.getDatabase();
 
-            if (db != null && info != null) {
+            if (db != null) {
 
                 com.couchbase.lite.View view = db.getView(type.getName() + "_" + field);
                 if (view.getMap() == null) {
@@ -467,10 +453,9 @@ public abstract class Model {
         Observable obs = Observable.defer(() -> Observable.create(subscriber -> {
 
             try {
-                TableInfo info = Cache.getTableInfo(type);
-                Database db = Cache.getDatabase();
+                Database db = CouchBaseOrm.getDatabase();
 
-                if (db != null && info != null) {
+                if (db != null) {
 
                     com.couchbase.lite.View view = db.getView(type.getName() + "_" + field);
                     if (view.getMap() == null) {
@@ -520,10 +505,9 @@ public abstract class Model {
     public static <T extends Model> T findFirstByField(@NotNull Class<T> type,@NotNull String field,@NotNull Object value) {
 
         try {
-            TableInfo info = Cache.getTableInfo(type);
-            Database db = Cache.getDatabase();
+            Database db = CouchBaseOrm.getDatabase();
 
-            if (db != null && info != null) {
+            if (db != null) {
 
                 com.couchbase.lite.View view = db.getView(type.getName() + "_" + field);
                 if (view.getMap() == null) {

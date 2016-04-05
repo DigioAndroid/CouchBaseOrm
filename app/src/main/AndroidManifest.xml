@@ -10,14 +10,6 @@
         android:name=".Application"
         android:theme="@style/AppTheme">
 
-        <meta-data
-            android:name="DB_NAME"
-            android:value="example.db"/>
-
-        <meta-data
-            android:name="DB_MODELS"
-            android:value="com.example.victor.couchbaseorm.User, com.example.victor.couchbaseorm.Chat" />
-
         <activity
             android:name=".MainActivity"
             android:label="@string/app_name"

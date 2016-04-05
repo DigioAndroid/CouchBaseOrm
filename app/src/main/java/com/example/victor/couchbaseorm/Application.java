@@ -10,6 +10,6 @@ public class Application extends android.app.Application {
     @Override public void onCreate() {
         super.onCreate();
 
-        CouchBaseOrm.initialize(this, true);
+        CouchBaseOrm.initialize(this);
     }
 }

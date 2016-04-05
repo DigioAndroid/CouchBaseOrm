@@ -19,11 +19,7 @@ public class DatabaseTest extends InstrumentationTestCase {
 
     @Before
     public void setUp() throws Exception {
-        Configuration conf = new Configuration.Builder(InstrumentationRegistry.getContext())
-                .setDatabaseName("DBTest")
-                .addModelClasses(User.class)
-                .create();
-        CouchBaseOrm.initialize(conf, true);
+        CouchBaseOrm.initialize(InstrumentationRegistry.getContext());
     }
 
     @Test

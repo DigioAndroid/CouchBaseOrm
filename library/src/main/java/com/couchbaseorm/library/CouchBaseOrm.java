@@ -5,42 +5,46 @@ import android.content.Context;
 
 import com.couchbase.lite.CouchbaseLiteException;
 import com.couchbase.lite.Database;
-import com.couchbase.lite.replicator.Replication;
-import com.couchbaseorm.library.util.Log;
+import com.couchbase.lite.Manager;
+import com.couchbase.lite.android.AndroidContext;
 
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.List;
+import java.io.IOException;
 
 
 public final class CouchBaseOrm {
 
+	private static Context sContext;
 
-	public static void initialize(Context context) {
-		initialize(new Configuration.Builder(context).create());
+	private static Manager sManager;
+	private static Database sDatabase;
+
+	public static void initialize(Context context){
+		CouchBaseOrm.sContext = context;
 	}
 
-	public static void initialize(Configuration configuration) {
-		initialize(configuration, false);
-	}
+	public static Manager getManager(){
+		if(sManager == null) {
+			try {
+				sManager = new Manager(new AndroidContext(sContext), Manager.DEFAULT_OPTIONS);
+			} catch(IOException ex){
+				ex.printStackTrace();
+			}
+		}
 
-	public static void initialize(Context context, boolean loggingEnabled) {
-		initialize(new Configuration.Builder(context).create(), loggingEnabled);
-	}
-
-	public static void initialize(Configuration configuration, boolean loggingEnabled) {
-		// Set logging enabled first
-		setLoggingEnabled(loggingEnabled);
-		Cache.initialize(configuration);
-	}
-
-
-	public static void setLoggingEnabled(boolean enabled) {
-		Log.setEnabled(enabled);
+		return sManager;
 	}
 
 	public static Database getDatabase(){
-		return Cache.getDatabase();
+		if(sDatabase == null) {
+			try {
+				sDatabase = getManager().getDatabase("couchbase_db");
+			} catch(CouchbaseLiteException ex){
+				ex.printStackTrace();
+			}
+		}
+
+		return sDatabase;
+
 	}
 
 }
